@@ -1,0 +1,76 @@
+{
+  "scenario": "Valid Checkout with Auto-Approved Upsell Bundle",
+  "description": "Demonstrates happy-path transaction: buyer orders Wireless Earbuds (p1), LLM agent proposes complementary Silicone Case (p2) at 10% discount with high confidence, guardrails auto-approve, Razorpay test order completes, and transaction is audited.",
+  "request": {
+    "method": "POST",
+    "endpoint": "/checkout",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "base_product_id": "p1",
+      "quantity": 1,
+      "idempotency_key": "idem_valid_flow_882310_a"
+    }
+  },
+  "agent_proposal": {
+    "action": "offer_bundle",
+    "base_product_id": "p1",
+    "addon_product_id": "p2",
+    "discount_percent": 10,
+    "confidence": 0.88,
+    "reasoning": "Earbuds case cover directly complements Wireless Earbuds; offering 10% bundle discount maximizes basket conversion without exceeding merchant cap.",
+    "provider": "anthropic"
+  },
+  "guardrail_evaluation": {
+    "approved": true,
+    "requires_human": false,
+    "reason": "Within all caps and confidence threshold -> auto-approved",
+    "details": {
+      "discount_percent": 10,
+      "max_discount_allowed": 15,
+      "transaction_amount_paise": 276810,
+      "max_transaction_paise": 500000,
+      "projected_daily_total_paise": 276810,
+      "max_daily_paise": 2000000,
+      "confidence": 0.88,
+      "min_confidence_required": 0.75
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "body": {
+      "status": "completed",
+      "message": "Order created in Razorpay test mode",
+      "order_id": "order_test_mock_1732152840",
+      "amount_paise": 276810,
+      "upsell_offered": true,
+      "addon_product_id": "p2",
+      "discount_percent": 10,
+      "agent_confidence": 0.88,
+      "agent_provider": "anthropic",
+      "audit_id": "aud_01JE3489AB7210F",
+      "approval_id": null
+    }
+  },
+  "audit_ledger_record": {
+    "id": "aud_01JE3489AB7210F",
+    "timestamp": "2026-11-20T14:34:00.128Z",
+    "event": "checkout_completed",
+    "reasoning": "Earbuds case cover directly complements Wireless Earbuds; offering 10% bundle discount maximizes basket conversion without exceeding merchant cap.",
+    "guardrail_result": "Within all caps and confidence threshold -> auto-approved",
+    "outcome": "auto_executed",
+    "provider": "anthropic",
+    "extra": {
+      "order_id": "order_test_mock_1732152840",
+      "amount_paise": 276810,
+      "notes": {
+        "base_product": "p1",
+        "quantity": "1",
+        "upsell": "p2",
+        "discount_percent": "10",
+        "idempotency_key": "idem_valid_flow_882310_a"
+      }
+    }
+  }
+}

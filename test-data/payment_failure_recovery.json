@@ -1,0 +1,115 @@
+{
+  "scenario": "Payment API Failure, Bounded Retries, and Fail-to-Human Recovery",
+  "description": "Demonstrates resilience against external payment gateway drops: Razorpay API fails repeatedly. The system attempts bounded exponential retries, guarantees NO funds are deducted, routes the order safely to the human review queue, and demonstrates idempotent recovery.",
+  "phase_1_checkout_attempt_under_outage": {
+    "request": {
+      "method": "POST",
+      "endpoint": "/checkout",
+      "body": {
+        "base_product_id": "p1",
+        "quantity": 1,
+        "idempotency_key": "idem_resilience_test_5501"
+      }
+    },
+    "gateway_interaction": {
+      "attempt_1": {
+        "action": "POST https://api.razorpay.com/v1/orders",
+        "status": 503,
+        "error": "Gateway Timeout"
+      },
+      "backoff_delay_sec": 0.5,
+      "attempt_2": {
+        "action": "POST https://api.razorpay.com/v1/orders (retry 1/2)",
+        "status": 503,
+        "error": "Gateway Timeout"
+      },
+      "backoff_delay_sec": 1.0,
+      "attempt_3": {
+        "action": "POST https://api.razorpay.com/v1/orders (retry 2/2)",
+        "status": 503,
+        "error": "Gateway Timeout"
+      },
+      "result": "Max retries exhausted (2/2); RazorpayUnavailable raised"
+    },
+    "safety_invariant_verified": {
+      "order_created": false,
+      "double_charge_risk": "ZERO - No order was ever generated in Razorpay"
+    },
+    "immediate_response": {
+      "status_code": 200,
+      "body": {
+        "status": "failed",
+        "message": "Payment failed after retries; routed to human review. No charge was made. (Razorpay test API unavailable after 2 retries)",
+        "order_id": null,
+        "amount_paise": 276810,
+        "upsell_offered": true,
+        "addon_product_id": "p2",
+        "discount_percent": 10,
+        "agent_confidence": 0.82,
+        "agent_provider": "offline",
+        "audit_id": "aud_01JE3702KL991",
+        "approval_id": "appr_fail_recover_001"
+      }
+    }
+  },
+  "phase_2_human_review_and_recovery": {
+    "queue_entry": {
+      "id": "appr_fail_recover_001",
+      "status": "pending",
+      "reason": "Payment provider unavailable: Razorpay test API unavailable after 2 retries",
+      "payload": {
+        "base_product_id": "p1",
+        "quantity": 1,
+        "amount_paise": 276810,
+        "notes": {
+          "base_product": "p1",
+          "quantity": "1",
+          "upsell": "p2",
+          "discount_percent": "10",
+          "idempotency_key": "idem_resilience_test_5501"
+        },
+        "idempotency_key": "idem_resilience_test_5501"
+      }
+    },
+    "merchant_resolution": {
+      "action": "POST /approvals/appr_fail_recover_001/approve",
+      "notes": "Triggered after Razorpay connectivity is confirmed restored",
+      "result": {
+        "status": "completed",
+        "message": "Human-approved and executed",
+        "order_id": "order_test_mock_1732153899",
+        "amount_paise": 276810,
+        "approval_id": "appr_fail_recover_001",
+        "audit_id": "aud_01JE3715MN332"
+      }
+    }
+  },
+  "phase_3_idempotent_replay_verification": {
+    "description": "If the client, unaware of the manual resolution, replays the exact same purchase with idempotency_key 'idem_resilience_test_5501', the orchestrator returns the existing completed transaction without creating a duplicate charge.",
+    "replay_request": {
+      "method": "POST",
+      "endpoint": "/checkout",
+      "body": {
+        "base_product_id": "p1",
+        "quantity": 1,
+        "idempotency_key": "idem_resilience_test_5501"
+      }
+    },
+    "replay_response": {
+      "status_code": 200,
+      "body": {
+        "status": "replayed",
+        "message": "Idempotent replay — no new charge created.",
+        "order_id": "order_test_mock_1732153899",
+        "amount_paise": 276810,
+        "upsell_offered": false,
+        "addon_product_id": null,
+        "discount_percent": 0,
+        "agent_confidence": null,
+        "agent_provider": null,
+        "audit_id": "aud_01JE3715MN332",
+        "approval_id": "appr_fail_recover_001"
+      }
+    }
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "scenario": "Over-Limit Transaction Bounded by Guardrails and Routed to Human Review",
+  "description": "Demonstrates safety guardrail enforcement: buyer orders 2 units of Mechanical Keyboard (p3) totalling ₹9,198.00 (919,800 paise), which exceeds the ₹5,000.00 auto-approval threshold. The transaction is held in the approval queue without charging the buyer until approved by a merchant operator.",
+  "phase_1_initial_checkout": {
+    "request": {
+      "method": "POST",
+      "endpoint": "/checkout",
+      "body": {
+        "base_product_id": "p3",
+        "quantity": 2,
+        "idempotency_key": "idem_overlimit_keyboard_099"
+      }
+    },
+    "guardrail_evaluation": {
+      "approved": false,
+      "requires_human": true,
+      "reason": "Amount ₹9198.00 exceeds per-transaction cap ₹5000.00 -> human approval required"
+    },
+    "immediate_response": {
+      "status_code": 200,
+      "body": {
+        "status": "pending_human_approval",
+        "message": "Amount ₹9198.00 exceeds per-transaction cap ₹5000.00 -> human approval required",
+        "order_id": null,
+        "amount_paise": 919800,
+        "upsell_offered": false,
+        "addon_product_id": null,
+        "discount_percent": 0,
+        "agent_confidence": 1.0,
+        "agent_provider": "offline",
+        "audit_id": "aud_01JE3599ZZ812",
+        "approval_id": "appr_7c2b4f1e8a"
+      }
+    }
+  },
+  "phase_2_human_approval_queue_entry": {
+    "id": "appr_7c2b4f1e8a",
+    "created_at": "2026-11-20T14:40:15.000Z",
+    "status": "pending",
+    "reason": "Amount ₹9198.00 exceeds per-transaction cap ₹5000.00 -> human approval required",
+    "payload": {
+      "base_product_id": "p3",
+      "quantity": 2,
+      "amount_paise": 919800,
+      "notes": {
+        "base_product": "p3",
+        "quantity": "2",
+        "upsell": "none",
+        "discount_percent": "0",
+        "idempotency_key": "idem_overlimit_keyboard_099"
+      },
+      "idempotency_key": "idem_overlimit_keyboard_099"
+    }
+  },
+  "phase_3_merchant_approval_action": {
+    "request": {
+      "method": "POST",
+      "endpoint": "/approvals/appr_7c2b4f1e8a/approve",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    },
+    "execution_response": {
+      "status_code": 200,
+      "body": {
+        "status": "completed",
+        "message": "Human-approved and executed",
+        "order_id": "order_test_mock_1732153220",
+        "amount_paise": 919800,
+        "upsell_offered": false,
+        "addon_product_id": null,
+        "discount_percent": 0,
+        "agent_confidence": null,
+        "agent_provider": null,
+        "audit_id": "aud_01JE3611AA990",
+        "approval_id": "appr_7c2b4f1e8a"
+      }
+    }
+  },
+  "phase_4_final_audit_ledger": {
+    "id": "aud_01JE3611AA990",
+    "timestamp": "2026-11-20T14:42:01.442Z",
+    "event": "approval_executed",
+    "reasoning": "Human approved the queued action.",
+    "guardrail_result": "human_approved",
+    "outcome": "human_approved_executed",
+    "extra": {
+      "approval_id": "appr_7c2b4f1e8a",
+      "order_id": "order_test_mock_1732153220",
+      "amount_paise": 919800,
+      "notes": {
+        "base_product": "p3",
+        "quantity": "2",
+        "upsell": "none",
+        "discount_percent": "0",
+        "idempotency_key": "idem_overlimit_keyboard_099"
+      }
+    }
+  }
+}

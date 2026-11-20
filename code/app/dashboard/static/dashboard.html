@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent spending — control room</title>
+<style>
+  :root {
+    --paper:      #eef1f6;   /* cool slate ground */
+    --card:       #ffffff;
+    --ink:        #16233a;   /* ledger navy */
+    --ink-soft:   #5a6880;
+    --ink-faint:  #8b97ad;
+    --rule:       #dde3ec;
+    --indigo:     #2647d6;
+    --indigo-dim: #e8ecfc;
+    --money:      #0f7b54;
+    --money-dim:  #e2f3ec;
+    --hold:       #b4690e;
+    --hold-dim:   #fbeedb;
+    --stop:       #b3261e;
+    --stop-dim:   #fbe6e4;
+    --sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", ui-monospace, "SF Mono", Menlo, monospace;
+    --r: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font: 400 13.5px/1.55 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- header ---------- */
+  .topbar {
+    background: var(--card); border-bottom: 1px solid var(--rule);
+    padding: 14px 26px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .topbar h1 { font-size: 15.5px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+  .topbar .tag { color: var(--ink-soft); font-size: 12.5px; }
+  .spacer { flex: 1 1 auto; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--rule); border-radius: 999px;
+    padding: 4px 11px; font-size: 12px; color: var(--ink-soft); background: var(--card);
+  }
+  .chip b { font-weight: 600; color: var(--ink); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); }
+  .dot.live { background: var(--money); }
+  .dot.mock { background: var(--hold); }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 22px 26px 70px; }
+
+  /* ---------- hero: the fence ---------- */
+  .fence {
+    background: var(--card); border: 1px solid var(--rule); border-radius: var(--r);
+    padding: 22px 24px; margin-bottom: 20px;
+    display: grid; grid-template-columns: 1fr; gap: 26px;
+  }
+  @media (min-width: 900px) { .fence { grid-template-columns: 1.35fr 1fr; } }
+
+  .gauge-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .gauge-head .lede { font-size: 13px; color: var(--ink-soft); }
+  .gauge-amount { font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: 30px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+  .gauge-cap { font-size: 12.5px; color: var(--ink-faint); }
+  .track {
+    position: relative; height: 12px; border-radius: 6px;
+    background: #e4e9f1; overflow: hidden; margin: 14px 0 8px;
+  }
+  .fill {
+    position: absolute; inset: 0 auto 0 0; width: 0;
+    background: var(--money); border-radius: 6px;
+    transition: width .55s cubic-bezier(.22,.7,.3,1), background-color .35s;
+  }
+  .fill.warn { background: var(--hold); }
+  .fill.hot  { background: var(--stop); }
+  .track-legend { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-faint); }
+
+  .limits { border-left: 1px solid var(--rule); padding-left: 24px; }
+  @media (max-width: 899px) { .limits { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); padding-top: 20px; } }
+  .limits h2 { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+  .limits p  { margin: 0 0 12px; font-size: 12.5px; color: var(--ink-soft); }
+  .limit-row { display: flex; justify-content: space-between; gap: 12px;
+    padding: 7px 0; border-bottom: 1px dashed var(--rule); font-size: 12.5px; }
+  .limit-row:last-child { border-bottom: 0; }
+  .limit-row span { color: var(--ink-soft); }
+  .limit-row b { font-family: var(--mono); font-weight: 600; }
+
+  /* ---------- stat strip ---------- */
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (min-width: 720px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+  .stat { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r); padding: 14px 16px; }
+  .stat .v { font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: 21px; font-weight: 600; letter-spacing: -.02em; }
+  .stat .k { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+  /* ---------- columns ---------- */
+  .cols { display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px; }
+  @media (min-width: 980px) { .cols { grid-template-columns: 1.25fr 1fr; } }
+
+  .panel { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; }
+  .panel > header {
+    padding: 13px 18px; border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .panel h2 { font-size: 13.5px; font-weight: 600; margin: 0; }
+  .panel .hint { font-size: 12px; color: var(--ink-faint); }
+  .panel .scroll { max-height: 460px; overflow: auto; }
+
+  /* ---------- storefront ---------- */
+  .prod { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--rule); }
+  .prod:last-child { border-bottom: 0; }
+  .prod .info { flex: 1 1 auto; min-width: 0; }
+  .prod .nm { font-weight: 550; }
+  .prod .meta { font-size: 12px; color: var(--ink-faint); }
+  .prod .pr { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .qty { display: flex; align-items: center; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  .qty button { border: 0; background: var(--card); width: 26px; height: 30px; cursor: pointer;
+    font-size: 15px; color: var(--ink-soft); line-height: 1; }
+  .qty button:hover { background: var(--paper); color: var(--ink); }
+  .qty .n { width: 26px; text-align: center; font-family: var(--mono); font-size: 12.5px; }
+
+  /* ---------- buttons ---------- */
+  button.btn {
+    font: 500 12.5px/1 var(--sans); padding: 9px 14px; border-radius: 8px;
+    border: 1px solid var(--rule); background: var(--card); color: var(--ink); cursor: pointer;
+    transition: background-color .12s, border-color .12s;
+  }
+  button.btn:hover { background: var(--paper); }
+  button.btn.pri { background: var(--indigo); border-color: var(--indigo); color: #fff; }
+  button.btn.pri:hover { background: #1e3ab4; }
+  button.btn.go { background: var(--money); border-color: var(--money); color: #fff; }
+  button.btn.go:hover { background: #0c6444; }
+  button.btn.no { color: var(--stop); border-color: #f0c9c5; }
+  button.btn.no:hover { background: var(--stop-dim); }
+  button.btn:focus-visible, .row-head:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+  button.btn:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- approvals ---------- */
+  .appr { padding: 15px 18px; border-bottom: 1px solid var(--rule); }
+  .appr:last-child { border-bottom: 0; }
+  .appr .amt { font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: 19px; font-weight: 600; }
+  .appr .why { color: var(--hold); font-size: 12.5px; margin: 5px 0 11px; }
+  .appr .acts { display: flex; gap: 8px; }
+
+  /* ---------- ledger ---------- */
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filters button {
+    font: 500 12px/1 var(--sans); padding: 6px 11px; border-radius: 999px;
+    border: 1px solid var(--rule); background: var(--card); color: var(--ink-soft); cursor: pointer;
+  }
+  .filters button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+  .row { border-bottom: 1px solid var(--rule); }
+  .row:last-child { border-bottom: 0; }
+  .row-head {
+    width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+    display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: start;
+    padding: 12px 18px; font: inherit; color: inherit;
+  }
+  .row-head:hover { background: #f7f9fc; }
+  .row .t { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); padding-top: 2px; }
+  .row .ev { font-weight: 550; font-size: 12.5px; }
+  .row .rs { color: var(--ink-soft); font-size: 12.5px; margin-top: 2px; }
+  .row .gr { color: var(--ink-faint); font-size: 11.5px; margin-top: 3px; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge.ok   { background: var(--money-dim); color: var(--money); }
+  .badge.hold { background: var(--hold-dim);  color: var(--hold); }
+  .badge.stop { background: var(--stop-dim);  color: var(--stop); }
+  .badge.info { background: var(--indigo-dim); color: var(--indigo); }
+  .detail { padding: 0 18px 14px 96px; }
+  .detail pre { margin: 0; background: #f7f9fc; border: 1px solid var(--rule); border-radius: 8px;
+    padding: 11px 13px; font-family: var(--mono); font-size: 11.5px; overflow-x: auto; color: var(--ink-soft); }
+
+  .empty { padding: 26px 18px; color: var(--ink-faint); font-size: 12.5px; }
+
+  /* ---------- toast ---------- */
+  .toast {
+    position: fixed; right: 20px; bottom: 20px; max-width: 400px;
+    background: var(--ink); color: #fff; padding: 12px 16px; border-radius: 9px;
+    font-size: 12.5px; line-height: 1.45; opacity: 0; transform: translateY(8px);
+    transition: opacity .18s, transform .18s; pointer-events: none; z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: none; }
+  .toast .hd { font-weight: 600; margin-bottom: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Agent spending</h1>
+  <span class="tag">an upsell agent buying inside a fence you control</span>
+  <span class="spacer"></span>
+  <span class="chip" id="chipPay"><span class="dot" id="dotPay"></span><span id="txtPay">checking…</span></span>
+  <span class="chip" id="chipBrain">deciding with <b id="txtBrain">…</b></span>
+  <button class="btn" onclick="resetAll()">Clear demo data</button>
+</div>
+
+<main>
+
+  <!-- hero: the fence -->
+  <section class="fence">
+    <div>
+      <div class="gauge-head">
+        <div>
+          <div class="lede">Spent by the agent today, without asking anyone</div>
+          <div class="gauge-amount" id="spent">₹0.00</div>
+        </div>
+        <div class="gauge-cap">of <span class="num" id="cap">₹0</span> allowed</div>
+      </div>
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="track-legend">
+        <span id="pct">0% used</span>
+        <span><span class="num" id="remaining">₹0</span> left before every purchase needs a human</span>
+      </div>
+    </div>
+
+    <div class="limits">
+      <h2>Limits in force</h2>
+      <p>Breach any one of these and the purchase stops for a human instead of going through.</p>
+      <div class="limit-row"><span>Discount the agent may give</span><b id="lDisc">—</b></div>
+      <div class="limit-row"><span>Any single purchase</span><b id="lTxn">—</b></div>
+      <div class="limit-row"><span>All purchases in a day</span><b id="lDay">—</b></div>
+      <div class="limit-row"><span>Agent confidence needed</span><b id="lConf">—</b></div>
+    </div>
+  </section>
+
+  <!-- stat strip -->
+  <section class="stats">
+    <div class="stat"><div class="v num" id="sOrders">0</div><div class="k">Orders placed</div></div>
+    <div class="stat"><div class="v num" id="sGmv">₹0</div><div class="k">Value processed</div></div>
+    <div class="stat"><div class="v num" id="sAttach">0%</div><div class="k">Got an upsell</div></div>
+    <div class="stat"><div class="v num" id="sHeld">0</div><div class="k">Stopped for a human</div></div>
+  </section>
+
+  <div class="cols">
+    <!-- storefront -->
+    <section class="panel">
+      <header>
+        <h2>Buy something</h2>
+        <span class="hint">the agent decides the upsell as you check out</span>
+      </header>
+      <div class="scroll" id="shop"><div class="empty">Loading products…</div></div>
+    </section>
+
+    <div style="display:grid; gap:20px; align-content:start;">
+      <!-- approvals -->
+      <section class="panel">
+        <header>
+          <h2>Waiting on you</h2>
+          <span class="hint">nothing is charged until you approve</span>
+        </header>
+        <div class="scroll" id="approvals"></div>
+      </section>
+
+      <!-- scenarios -->
+      <section class="panel">
+        <header><h2>Try a scenario</h2></header>
+        <div style="padding:14px 18px; display:grid; gap:9px;">
+          <button class="btn" onclick="scenarioBig()">Buy over the limit → stops for you</button>
+          <button class="btn" onclick="scenarioOutage()">Payments go down → no charge, handed to you</button>
+          <button class="btn" onclick="scenarioBlip()">Brief network blip → retry recovers it</button>
+          <button class="btn" onclick="scenarioReplay()">Buyer retries twice → charged once</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ledger -->
+  <section class="panel">
+    <header>
+      <h2>Everything the agent did, and why</h2>
+      <span class="spacer"></span>
+      <div class="filters" id="filters">
+        <button data-f="all" aria-pressed="true" onclick="setFilter('all')">All</button>
+        <button data-f="ok" aria-pressed="false" onclick="setFilter('ok')">Went through</button>
+        <button data-f="hold" aria-pressed="false" onclick="setFilter('hold')">Stopped</button>
+        <button data-f="stop" aria-pressed="false" onclick="setFilter('stop')">Failed</button>
+      </div>
+    </header>
+    <div class="scroll" id="ledger"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+// Everything rendered below comes from the server — including model-generated
+// reasoning text — so it is escaped before it touches innerHTML.
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const rupees = (p) => "₹" + (p / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const rupeesShort = (p) => "₹" + Math.round(p / 100).toLocaleString("en-IN");
+const key = () => "buy_" + Math.random().toString(36).slice(2, 12);
+
+let FILTER = "all";
+let OPEN = new Set();          // expanded ledger rows survive refreshes
+const QTY = {};                // per-product quantity
+
+const CLASS_OF = {
+  auto_executed: "ok", human_approved_executed: "ok",
+  queued_for_human: "hold", replayed: "info",
+  failed: "stop", failed_routed_to_human: "stop", rejected: "stop",
+};
+const LABEL_OF = {
+  auto_executed: "went through", human_approved_executed: "you approved it",
+  queued_for_human: "stopped for you", replayed: "already done",
+  failed: "failed", failed_routed_to_human: "failed → handed to you", rejected: "you rejected it",
+};
+
+async function api(path, method = "GET", body) {
+  const r = await fetch(path, {
+    method, headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) throw new Error(`${path} returned ${r.status}`);
+  return r.json();
+}
+
+function toast(head, msg) {
+  const t = $("toast");
+  t.innerHTML = `<div class="hd"></div><div class="bd"></div>`;
+  t.querySelector(".hd").textContent = head;
+  t.querySelector(".bd").textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 4200);
+}
+
+function describe(r) {
+  if (r.status === "completed")  return ["Order placed", `${rupees(r.amount_paise)}${r.upsell_offered ? " — the agent added a bundle" : ""}`];
+  if (r.status === "pending_human_approval") return ["Stopped for you", r.message];
+  if (r.status === "replayed")   return ["Nothing charged", "Same purchase as before — no second charge."];
+  return ["Didn't go through", r.message];
+}
+
+async function buy(pid, qty) {
+  try {
+    const r = await api("/checkout", "POST", { base_product_id: pid, quantity: qty, idempotency_key: key() });
+    const [h, m] = describe(r); toast(h, m);
+    refresh();
+    return r;
+  } catch (e) { toast("Request failed", e.message); }
+}
+
+// --- scenarios ---
+async function scenarioBig()   { await buy("p3", 2); }
+async function scenarioOutage(){ await api("/demo/arm-failure?mode=always", "POST"); await buy("p1", 1); }
+async function scenarioBlip()  { await api("/demo/arm-failure?mode=once", "POST"); await buy("p1", 1); }
+async function scenarioReplay(){
+  const k = key();
+  await api("/checkout", "POST", { base_product_id: "p1", quantity: 1, idempotency_key: k });
+  const second = await api("/checkout", "POST", { base_product_id: "p1", quantity: 1, idempotency_key: k });
+  toast(second.status === "replayed" ? "Charged once" : "Unexpected",
+        "The buyer sent the same purchase twice. The second one returned the original order.");
+  refresh();
+}
+
+async function resetAll() {
+  await api("/demo/reset", "POST");
+  OPEN.clear();
+  toast("Cleared", "Ledger, approvals and today's total are back to zero.");
+  refresh();
+}
+
+async function decide(id, action) {
+  await api(`/approvals/${id}/${action}`, "POST");
+  toast(action === "approve" ? "Approved" : "Rejected",
+        action === "approve" ? "Charged now that you signed off." : "Nothing was charged.");
+  refresh();
+}
+
+// --- storefront ---
+function stepQty(pid, d, max) {
+  QTY[pid] = Math.max(1, Math.min((QTY[pid] || 1) + d, max));
+  $(`q_${pid}`).textContent = QTY[pid];
+}
+
+function renderShop(products) {
+  $("shop").innerHTML = products.map(p => `
+    <div class="prod">
+      <div class="info">
+        <div class="nm">${esc(p.name)}</div>
+        <div class="meta">${esc(p.description)} · ${p.stock} in stock</div>
+      </div>
+      <div class="pr">${rupees(p.price_paise)}</div>
+      <div class="qty">
+        <button onclick="stepQty('${p.id}',-1,${p.stock})" aria-label="one fewer">−</button>
+        <span class="n" id="q_${p.id}">${QTY[p.id] || 1}</span>
+        <button onclick="stepQty('${p.id}',1,${p.stock})" aria-label="one more">+</button>
+      </div>
+      <button class="btn pri" onclick="buy('${p.id}', QTY['${p.id}']||1)">Buy</button>
+    </div>`).join("");
+}
+
+// --- ledger ---
+function toggleRow(id) { OPEN.has(id) ? OPEN.delete(id) : OPEN.add(id); renderLedger(window._logs || []); }
+
+function renderLedger(logs) {
+  const shown = FILTER === "all" ? logs : logs.filter(e => CLASS_OF[e.outcome] === FILTER);
+  if (!shown.length) {
+    $("ledger").innerHTML = `<div class="empty">${logs.length
+      ? "Nothing matches this filter."
+      : "No activity yet. Buy something above, or try a scenario."}</div>`;
+    return;
+  }
+  $("ledger").innerHTML = shown.map(e => {
+    const cls = CLASS_OF[e.outcome] || "info";
+    const open = OPEN.has(e.id);
+    const t = new Date(e.timestamp).toLocaleTimeString("en-IN", { hour12: false });
+    return `
+      <div class="row">
+        <button class="row-head" onclick="toggleRow('${e.id}')" aria-expanded="${open}">
+          <span class="t">${t}</span>
+          <span>
+            <span class="ev">${esc(e.event.replace(/_/g, " "))}</span>
+            ${e.provider ? `<span class="t"> · ${esc(e.provider)}</span>` : ""}
+            <div class="rs">${esc(e.reasoning)}</div>
+            <div class="gr">${esc(e.guardrail_result)}</div>
+          </span>
+          <span class="badge ${cls}">${esc(LABEL_OF[e.outcome] || e.outcome)}</span>
+        </button>
+        ${open ? `<div class="detail"><pre>${esc(JSON.stringify(e.extra, null, 2))}</pre></div>` : ""}
+      </div>`;
+  }).join("");
+}
+
+function setFilter(f) {
+  FILTER = f;
+  [...$("filters").children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.f === f)));
+  renderLedger(window._logs || []);
+}
+
+// --- refresh loop ---
+async function refresh() {
+  try {
+    const [logs, pending, stats] = await Promise.all([
+      api("/audit/logs"), api("/approvals/?status=pending"), api("/stats"),
+    ]);
+    window._logs = logs;
+
+    // gauge
+    const used = stats.daily_cap_paise ? stats.daily_spent_paise / stats.daily_cap_paise : 0;
+    $("spent").textContent = rupees(stats.daily_spent_paise);
+    $("cap").textContent = rupeesShort(stats.daily_cap_paise);
+    $("remaining").textContent = rupeesShort(stats.daily_remaining_paise);
+    $("pct").textContent = Math.round(used * 100) + "% used";
+    const fill = $("fill");
+    fill.style.width = Math.min(100, used * 100) + "%";
+    fill.className = "fill" + (used >= 0.9 ? " hot" : used >= 0.6 ? " warn" : "");
+
+    // stats
+    $("sOrders").textContent = stats.orders_placed;
+    $("sGmv").textContent = rupeesShort(stats.gmv_paise);
+    $("sAttach").textContent = Math.round(stats.upsell_attach_rate * 100) + "%";
+    $("sHeld").textContent = stats.held_for_approval;
+
+    // approvals
+    $("approvals").innerHTML = pending.length ? pending.map(a => `
+      <div class="appr">
+        <div class="amt">${rupees(a.payload.amount_paise)}</div>
+        <div class="why">${esc(a.reason)}</div>
+        <div class="acts">
+          <button class="btn go" onclick="decide('${a.id}','approve')">Approve and charge</button>
+          <button class="btn no" onclick="decide('${a.id}','reject')">Reject</button>
+        </div>
+      </div>`).join("")
+      : `<div class="empty">Nothing needs you right now. The agent is staying inside its limits.</div>`;
+
+    renderLedger(logs);
+  } catch (e) {
+    toast("Can't reach the server", "Check the terminal running uvicorn.");
+  }
+}
+
+async function boot() {
+  try {
+    const [mode, caps, products] = await Promise.all([
+      api("/mode"), api("/guardrails/config"), api("/catalog/products"),
+    ]);
+    const live = mode.razorpay === "test_api";
+    $("dotPay").className = "dot " + (live ? "live" : "mock");
+    $("txtPay").innerHTML = live
+      ? `Razorpay test mode · <b>${esc(mode.razorpay_key_id)}</b>`
+      : `mock orders — no Razorpay keys set`;
+    $("txtBrain").textContent = mode.agent_brain === "anthropic" ? "Claude" : "rules, no model";
+
+    $("lDisc").textContent = "up to " + caps.max_discount_percent + "%";
+    $("lTxn").textContent  = rupeesShort(caps.max_transaction_paise);
+    $("lDay").textContent  = rupeesShort(caps.max_daily_total_paise);
+    $("lConf").textContent = caps.min_confidence;
+
+    renderShop(products);
+  } catch (e) {
+    $("shop").innerHTML = `<div class="empty">Couldn't load the catalog — is the server running?</div>`;
+  }
+  refresh();
+}
+
+boot();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
