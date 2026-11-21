@@ -12,8 +12,8 @@
 ## Submission Details
 
 - **Track:** Track 01 — Razorpay AI Buildathon
-- **Team Name / Details:** `[Team Details / Member Names]`
-- **Prototype / Live Demo Link:** `[Prototype / Demo Link]`
+- **Team Name / Details:** `[promptverse/ khushi,ritika agarwal]`
+- **Prototype / Live Demo Link:** `[https://razorpay-agent-commerce.onrender.com/dashboard]`
 - **Repository:** Milestone 2 Directory Structure (`Razorpay-agent-commerce`)
 
 ---
